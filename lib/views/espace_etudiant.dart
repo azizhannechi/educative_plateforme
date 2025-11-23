@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'detail_cours.dart';
 
 void main() {
   runApp(const MyApp());
@@ -32,6 +33,7 @@ class _StudentHomePageState extends State<StudentHomePage> {
   bool filterTD = false;
   bool filterTP = false;
   bool filterCOUR = true;
+  String currentPage = 'Accueil'; // Gestion de la page active
 
   // Liste des cours (exemple)
   final List<Map<String, dynamic>> courses = [
@@ -46,14 +48,6 @@ class _StudentHomePageState extends State<StudentHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Filtrer les cours selon les filtres activés
-    List<Map<String, dynamic>> filteredCourses = courses.where((course) {
-      if (filterTD && course['type'] == 'TD') return true;
-      if (filterTP && course['type'] == 'TP') return true;
-      if (filterCOUR && course['type'] == 'COUR') return true;
-      return false;
-    }).toList();
-
     return Scaffold(
       backgroundColor: Colors.grey[200],
       body: Row(
@@ -171,13 +165,25 @@ class _StudentHomePageState extends State<StudentHomePage> {
                   leading: const Icon(Icons.home, size: 20),
                   title: const Text('Accueil', style: TextStyle(fontSize: 13)),
                   dense: true,
-                  onTap: () {},
+                  selected: currentPage == 'Accueil',
+                  selectedTileColor: Colors.red.withOpacity(0.1),
+                  onTap: () {
+                    setState(() {
+                      currentPage = 'Accueil';
+                    });
+                  },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.arrow_back, size: 20),
-                  title: const Text('Retour', style: TextStyle(fontSize: 13)),
+                  leading: const Icon(Icons.bar_chart, size: 20),
+                  title: const Text('Statistiques', style: TextStyle(fontSize: 13)),
                   dense: true,
-                  onTap: () {},
+                  selected: currentPage == 'Statistiques',
+                  selectedTileColor: Colors.red.withOpacity(0.1),
+                  onTap: () {
+                    setState(() {
+                      currentPage = 'Statistiques';
+                    });
+                  },
                 ),
                 const SizedBox(height: 20),
               ],
@@ -186,76 +192,9 @@ class _StudentHomePageState extends State<StudentHomePage> {
 
           // CONTENU PRINCIPAL
           Expanded(
-            child: Column(
-              children: [
-                // Barre de recherche
-                Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.all(16),
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'java',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                  ),
-                ),
-
-                // Bandeau TOP 10
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  color: Colors.red,
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.flash_on, color: Colors.white, size: 24),
-                      SizedBox(width: 8),
-                      Text(
-                        'TOP 10',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Grille de cours
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: GridView.builder(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 4,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: 0.75,
-                      ),
-                      itemCount: filteredCourses.length,
-                      itemBuilder: (context, index) {
-                        final course = filteredCourses[index];
-                        return CourseCard(
-                          title: course['title'],
-                          progress: course['progress'],
-                          isFavorite: course['isFavorite'],
-                          onFavoriteToggle: () {
-                            setState(() {
-                              course['isFavorite'] = !course['isFavorite'];
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            child: currentPage == 'Accueil'
+                ? _buildAccueilPage()
+                : _buildStatistiquesPage(),
           ),
 
           // SIDEBAR DROITE - Recommandations
@@ -282,6 +221,289 @@ class _StudentHomePageState extends State<StudentHomePage> {
       ),
     );
   }
+
+  // PAGE ACCUEIL
+  Widget _buildAccueilPage() {
+    // Filtrer les cours selon les filtres activés
+    List<Map<String, dynamic>> filteredCourses = courses.where((course) {
+      if (filterTD && course['type'] == 'TD') return true;
+      if (filterTP && course['type'] == 'TP') return true;
+      if (filterCOUR && course['type'] == 'COUR') return true;
+      return false;
+    }).toList();
+
+    return Column(
+      children: [
+        // Barre de recherche
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.all(16),
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'java',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(25),
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+            ),
+          ),
+        ),
+
+        // Bandeau TOP 10
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          color: Colors.red,
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.flash_on, color: Colors.white, size: 24),
+              SizedBox(width: 8),
+              Text(
+                'TOP 10',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Grille de cours
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 0.75,
+              ),
+              itemCount: filteredCourses.length,
+              itemBuilder: (context, index) {
+                final course = filteredCourses[index];
+                return CourseCard(
+                  title: course['title'],
+                  progress: course['progress'],
+                  isFavorite: course['isFavorite'],
+                  onFavoriteToggle: () {
+                    setState(() {
+                      course['isFavorite'] = !course['isFavorite'];
+                    });
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // PAGE STATISTIQUES
+  Widget _buildStatistiquesPage() {
+    // Calculer les statistiques
+    int totalCourses = courses.length;
+    int favoriteCourses = courses.where((c) => c['isFavorite'] == true).length;
+    double avgProgress = courses.map((c) => c['progress'] as double).reduce((a, b) => a + b) / totalCourses;
+
+    int tdCount = courses.where((c) => c['type'] == 'TD').length;
+    int tpCount = courses.where((c) => c['type'] == 'TP').length;
+    int courCount = courses.where((c) => c['type'] == 'COUR').length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Statistiques',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 30),
+
+          // Cartes de statistiques
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Total des cours',
+                  totalCourses.toString(),
+                  Icons.book,
+                  Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildStatCard(
+                  'Cours favoris',
+                  favoriteCourses.toString(),
+                  Icons.star,
+                  Colors.amber,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildStatCard(
+                  'Progression moyenne',
+                  '${(avgProgress * 100).toStringAsFixed(0)}%',
+                  Icons.trending_up,
+                  Colors.green,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 30),
+
+          // Répartition par type
+          const Text(
+            'Répartition par type',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildTypeCard('TD', tdCount, Colors.purple),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildTypeCard('TP', tpCount, Colors.orange),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildTypeCard('COUR', courCount, Colors.red),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 30),
+
+          // Liste détaillée des cours
+          const Text(
+            'Détails des cours',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          ...courses.map((course) => Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: Icon(
+                course['isFavorite'] ? Icons.star : Icons.star_border,
+                color: course['isFavorite'] ? Colors.amber : Colors.grey,
+              ),
+              title: Text(course['title']),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 4),
+                  Text('Type: ${course['type']}'),
+                  const SizedBox(height: 4),
+                  LinearProgressIndicator(
+                    value: course['progress'],
+                    backgroundColor: Colors.grey[300],
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                  ),
+                ],
+              ),
+              trailing: Text(
+                '${(course['progress'] * 100).toStringAsFixed(0)}%',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          )).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+    return Card(
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 40, color: color),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeCard(String type, int count, Color color) {
+    return Card(
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Text(
+              type,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              count.toString(),
+              style: const TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              count == 1 ? 'cours' : 'cours',
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // Widget pour chaque carte de cours
@@ -301,72 +523,87 @@ class CourseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Étoile favorite
-          Align(
-            alignment: Alignment.topLeft,
-            child: IconButton(
-              icon: Icon(
-                isFavorite ? Icons.star : Icons.star_border,
-                color: isFavorite ? Colors.amber : Colors.grey,
-              ),
-              onPressed: onFavoriteToggle,
+    return InkWell(
+      onTap: () {
+        // Navigation vers la page de détails du cours
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CourseDetailsPage(
+              title: title,
+              progress: progress,
+              isFavorite: isFavorite,
             ),
           ),
-
-          // Image du cours (placeholder)
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                border: Border.all(color: Colors.grey),
-              ),
-              child: const Center(
-                child: Icon(Icons.image, size: 50, color: Colors.grey),
-              ),
-            ),
-          ),
-
-          // Titre du cours
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Container(
-              height: 30,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-              ),
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                title,
-                style: const TextStyle(fontSize: 10),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-
-          // Barre de progression
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4),
-            child: Column(
-              children: [
-                LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: Colors.grey[300],
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
-                  minHeight: 8,
+        );
+      },
+      child: Card(
+        elevation: 2,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Étoile favorite
+            Align(
+              alignment: Alignment.topLeft,
+              child: IconButton(
+                icon: Icon(
+                  isFavorite ? Icons.star : Icons.star_border,
+                  color: isFavorite ? Colors.amber : Colors.grey,
                 ),
-                const SizedBox(height: 8),
-              ],
+                onPressed: onFavoriteToggle,
+              ),
             ),
-          ),
-        ],
+
+            // Image du cours (placeholder)
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  border: Border.all(color: Colors.grey),
+                ),
+                child: const Center(
+                  child: Icon(Icons.image, size: 50, color: Colors.grey),
+                ),
+              ),
+            ),
+
+            // Titre du cours
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Container(
+                height: 30,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                ),
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  title,
+                  style: const TextStyle(fontSize: 10),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+
+            // Barre de progression
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4),
+              child: Column(
+                children: [
+                  LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: Colors.grey[300],
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                    minHeight: 8,
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
