@@ -386,7 +386,7 @@ class SignupFormState extends State<SignupForm> {
               ),
               GestureDetector(
                 onTap: () {
-                  _showMessage('Redirection vers connexion');
+                  Navigator.pushReplacementNamed(context, '/login');
                   // TODO: Naviguer vers la page de connexion
                 },
                 child: const Text(
@@ -414,4 +414,5 @@ class SignupFormState extends State<SignupForm> {
     etablissementController.dispose();
     super.dispose();
   }
+
 }
