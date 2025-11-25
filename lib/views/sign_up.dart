@@ -1,26 +1,5 @@
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Formulaire d\'inscription',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: const SignupPage(),
-    );
-  }
-}
-
 // ---- PAGE PRINCIPALE ----
 class SignupPage extends StatelessWidget {
   const SignupPage({super.key});
@@ -119,9 +98,9 @@ class SignupFormState extends State<SignupForm> {
   final passwordController = TextEditingController();
   final etablissementController = TextEditingController();
 
-  String? userType; // Étudiant ou Enseignant
+  String? userType = 'Étudiant'; // Défini par défaut sur Étudiant
   String? niveau; // Niveau scolaire pour étudiant
-  String? matiere; // Matière pour enseignant
+  // String? matiere; // Matière pour enseignant - SUPPRIMÉ
 
   // Liste des niveaux scolaires
   final List<String> niveaux = [
@@ -132,19 +111,6 @@ class SignupFormState extends State<SignupForm> {
     'Master M2',
   ];
 
-  // Liste des matières
-  final List<String> matieres = [
-    'Mathématiques',
-    'Gestion',
-    'Finance',
-    'Informatique',
-    'Français',
-    'Anglais',
-    'Histoire',
-    'Géographie',
-    'Comptabilité',
-    'Économie',
-  ];
 
   void signup() {
     String nom = nomController.text;
@@ -165,11 +131,6 @@ class SignupFormState extends State<SignupForm> {
 
     if (userType == 'Étudiant' && niveau == null) {
       _showMessage('Veuillez sélectionner votre niveau scolaire');
-      return;
-    }
-
-    if (userType == 'Enseignant' && matiere == null) {
-      _showMessage('Veuillez sélectionner votre matière');
       return;
     }
 
@@ -261,35 +222,7 @@ class SignupFormState extends State<SignupForm> {
           ),
           const SizedBox(height: 20),
 
-          // 🔹 TYPE D'UTILISATEUR (Étudiant ou Enseignant)
-          DropdownButtonFormField<String>(
-            value: userType,
-            decoration: const InputDecoration(
-              hintText: 'Vous êtes*',
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 15,
-                vertical: 15,
-              ),
-            ),
-            items: ['Étudiant', 'Enseignant'].map((String type) {
-              return DropdownMenuItem<String>(
-                value: type,
-                child: Text(type),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              setState(() {
-                userType = newValue;
-                // Réinitialiser les champs conditionnels
-                niveau = null;
-                matiere = null;
-              });
-            },
-          ),
-          const SizedBox(height: 20),
 
-          // 🔹 ÉTABLISSEMENT
           TextField(
             controller: etablissementController,
             decoration: const InputDecoration(
@@ -303,56 +236,30 @@ class SignupFormState extends State<SignupForm> {
           ),
           const SizedBox(height: 20),
 
-          // 🔹 NIVEAU SCOLAIRE (Si Étudiant)
-          if (userType == 'Étudiant')
-            DropdownButtonFormField<String>(
-              value: niveau,
-              decoration: const InputDecoration(
-                hintText: 'Niveau scolaire*',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 15,
-                  vertical: 15,
-                ),
+          // 🔹 NIVEAU SCOLAIRE (Puisque c'est toujours Étudiant)
+          // La condition `if (userType == 'Étudiant')` n'est plus nécessaire
+          DropdownButtonFormField<String>(
+            value: niveau,
+            decoration: const InputDecoration(
+              hintText: 'Niveau scolaire*',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 15,
+                vertical: 15,
               ),
-              items: niveaux.map((String niv) {
-                return DropdownMenuItem<String>(
-                  value: niv,
-                  child: Text(niv),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  niveau = newValue;
-                });
-              },
             ),
-
-          // 🔹 MATIÈRE (Si Enseignant)
-          if (userType == 'Enseignant')
-            DropdownButtonFormField<String>(
-              value: matiere,
-              decoration: const InputDecoration(
-                hintText: 'Matière enseignée*',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 15,
-                  vertical: 15,
-                ),
-              ),
-              items: matieres.map((String mat) {
-                return DropdownMenuItem<String>(
-                  value: mat,
-                  child: Text(mat),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  matiere = newValue;
-                });
-              },
-            ),
-
+            items: niveaux.map((String niv) {
+              return DropdownMenuItem<String>(
+                value: niv,
+                child: Text(niv),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              setState(() {
+                niveau = newValue;
+              });
+            },
+          ),
           const SizedBox(height: 25),
 
           // 🔹 BOUTON S'INSCRIRE
@@ -416,3 +323,4 @@ class SignupFormState extends State<SignupForm> {
   }
 
 }
+
