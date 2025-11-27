@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 class CourseDetailsPage extends StatefulWidget {
   final String title;
@@ -33,6 +36,78 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
       'rating': 3,
     },
   ];
+
+  // 🔑 REMPLACE PAR TA CLÉ PAYMEE SANDBOX
+  static const String _paymeeApiKey = "YOUR_SANDBOX_API_KEY_HERE";
+
+  Future<void> _buyWithPaymeeTest() async {
+    final url = Uri.parse("https://sandbox.paymee.tn/api/v2/payments/create");
+
+    final body = {
+      "amount": 100, // 100 millimes = 0.1 TND (test parfait)
+      "note": "Test achat cours: ${widget.title}",
+      "return_url": "https://example.com/success",
+      "cancel_url": "https://example.com/cancel",
+    };
+
+    try {
+      // Montre un loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": _paymeeApiKey,
+        },
+        body: jsonEncode(body),
+      );
+
+      Navigator.pop(context); // Ferme le loading
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data["status"] == 200) {
+        final paymentUrl = data["data"]["payment_url"];
+
+        if (await canLaunchUrl(Uri.parse(paymentUrl))) {
+          await launchUrl(
+              Uri.parse(paymentUrl),
+              mode: LaunchMode.externalApplication
+          );
+        } else {
+          _showMessage("Impossible d'ouvrir Paymee");
+        }
+      } else {
+        _showMessage("❌ Erreur Paymee : ${data['message'] ?? 'Erreur inconnue'}");
+      }
+    } catch (e) {
+      Navigator.pop(context); // Ferme le loading en cas d'erreur
+      _showMessage("❌ Erreur réseau : $e");
+    }
+  }
+
+  void _showMessage(String msg) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Information"),
+        content: Text(msg),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -172,6 +247,31 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                   ),
                   const SizedBox(height: 30),
 
+                  // 🔥 BOUTON PAYMEE AJOUTÉ ICI
+                  SizedBox(
+                    width: 350,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 3,
+                      ),
+                      onPressed: _buyWithPaymeeTest,
+                      child: const Text(
+                        "💳 Acheter (Test Sandbox) - 0.1 TND",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+
                   // Description (placeholders)
                   SizedBox(
                     width: 600,
@@ -309,14 +409,19 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Texte du commentaire (placeholder)
-                              Container(
-                                width: 250,
-                                height: 15,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[400],
-                                  borderRadius: BorderRadius.circular(4),
+                              // Nom utilisateur
+                              Text(
+                                comment['user'],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
                                 ),
+                              ),
+                              const SizedBox(height: 5),
+                              // Texte du commentaire
+                              Text(
+                                comment['comment'],
+                                style: const TextStyle(fontSize: 14),
                               ),
                               const SizedBox(height: 8),
 
