@@ -406,72 +406,87 @@ class CourseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CourseDetailsPage(
-              title: title,
-              progress: progress,
-              isFavorite: isFavorite,
+    return Card(
+      elevation: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Align(
+            alignment: Alignment.topLeft,
+            child: IconButton(
+              icon: Icon(
+                isFavorite ? Icons.star : Icons.star_border,
+                color: isFavorite ? Colors.amber : Colors.grey,
+              ),
+              onPressed: onFavoriteToggle,
             ),
           ),
-        );
-      },
-      child: Card(
-        elevation: 2,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Align(
-              alignment: Alignment.topLeft,
-              child: IconButton(
-                icon: Icon(
-                  isFavorite ? Icons.star : Icons.star_border,
-                  color: isFavorite ? Colors.amber : Colors.grey,
+
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                border: Border.all(color: Colors.grey),
+              ),
+              child: const Center(
+                child: Icon(Icons.image, size: 50, color: Colors.grey),
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Container(
+              height: 30,
+              decoration: BoxDecoration(border: Border.all(color: Colors.grey)),
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(title, style: const TextStyle(fontSize: 10),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey[300],
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+              minHeight: 8,
+            ),
+          ),
+
+          // 🔥 BOUTON ACHETER CE COURS
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
                 ),
-                onPressed: onFavoriteToggle,
-              ),
-            ),
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  border: Border.all(color: Colors.grey),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CourseDetailsPage(
+                        title: title,
+                        progress: progress,
+                        isFavorite: isFavorite,
+                      ),
+                    ),
+                  );
+                },
+                child: const Text(
+                  "Acheter ce cours",
+                  style: TextStyle(fontSize: 12),
                 ),
-                child: const Center(
-                  child: Icon(Icons.image, size: 50, color: Colors.grey),
-                ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Container(
-                height: 30,
-                decoration: BoxDecoration(border: Border.all(color: Colors.grey)),
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(title, style: const TextStyle(fontSize: 10), maxLines: 2, overflow: TextOverflow.ellipsis),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4),
-              child: Column(
-                children: [
-                  LinearProgressIndicator(
-                    value: progress,
-                    backgroundColor: Colors.grey[300],
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
-                    minHeight: 8,
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
