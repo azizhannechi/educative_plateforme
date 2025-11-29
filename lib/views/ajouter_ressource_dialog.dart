@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 import 'dart:io';
+import '../controllers/course_controller.dart';
+import '../services/storage_service.dart';
+import '../models/course_model.dart';
 
 class AjouterRessourceDialog extends StatefulWidget {
-  final Function(Map<String, dynamic>) onRessourceAdded; // Callback ajouté
+  final String courseId;
+  final Function(CourseResource) onRessourceAdded;
 
   const AjouterRessourceDialog({
     super.key,
-    required this.onRessourceAdded, // Paramètre requis
+    required this.courseId,
+    required this.onRessourceAdded,
   });
 
   @override
@@ -16,86 +21,117 @@ class AjouterRessourceDialog extends StatefulWidget {
 }
 
 class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
-  String? selectedType; // TD, TP, ou COUR
-  final TextEditingController titleController = TextEditingController();
-  final TextEditingController descriptionController = TextEditingController();
+  final CourseController _courseController = CourseController();
+  final StorageService _storageService = StorageService();
 
-  File? coverImage; // Image de couverture
-  String? coverImageName;
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _urlController = TextEditingController();
 
-  File? resourceFile; // Fichier PDF ou Vidéo
-  String? resourceFileName;
-  String? resourceFileType; // 'pdf' ou 'video'
+  String? _selectedResourceType; // 'pdf', 'video'
+  File? _selectedFile;
+  String? _fileName;
 
-  // Fonction pour sélectionner l'image de couverture
-  Future<void> _pickCoverImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-
-    if (image != null) {
-      setState(() {
-        coverImage = File(image.path);
-        coverImageName = image.name;
-      });
-    }
-  }
-
-  // Fonction pour sélectionner le fichier ressource (PDF ou Vidéo)
-  Future<void> _pickResourceFile() async {
+  // Fonction pour sélectionner le fichier
+  Future<void> _pickFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'mp4', 'mov', 'avi', 'mkv'],
+      allowedExtensions: ['pdf', 'mp4', 'mov', 'avi'],
     );
 
     if (result != null) {
       setState(() {
-        resourceFile = File(result.files.single.path!);
-        resourceFileName = result.files.single.name;
+        _selectedFile = File(result.files.single.path!);
+        _fileName = result.files.single.name;
 
-        // Déterminer le type de fichier
-        String extension = result.files.single.extension ?? '';
+        // Déterminer le type automatiquement
+        String extension = result.files.single.extension?.toLowerCase() ?? '';
         if (extension == 'pdf') {
-          resourceFileType = 'pdf';
+          _selectedResourceType = 'pdf';
         } else {
-          resourceFileType = 'video';
+          _selectedResourceType = 'video';
         }
+
+        // Vider l'URL si on sélectionne un fichier
+        _urlController.clear();
       });
     }
   }
 
-  // Fonction pour publier la ressource
-  void _publierRessource() {
-    // Validation
-    if (selectedType == null) {
-      _showErrorSnackBar('Veuillez sélectionner un type (TD/TP/COUR)');
-      return;
-    }
-    if (titleController.text.isEmpty) {
-      _showErrorSnackBar('Veuillez entrer un titre');
-      return;
-    }
-    if (resourceFile == null) {
-      _showErrorSnackBar('Veuillez sélectionner un fichier (PDF ou Vidéo)');
+  // Fonction pour ajouter la ressource au cours existant
+  void _ajouterRessource() async {
+    if (_selectedResourceType == null || _titleController.text.isEmpty) {
+      _showErrorSnackBar('Type et titre sont requis');
       return;
     }
 
-    // Créer l'objet ressource
-    Map<String, dynamic> newResource = {
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'title': titleController.text,
-      'description': descriptionController.text,
-      'type': selectedType,
-      'coverImage': coverImage?.path,
-      'resourceFile': resourceFile?.path,
-      'resourceFileType': resourceFileType,
-      'uploadDate': DateTime.now(),
-    };
+    try {
+      String? finalUrl;
+      String? storagePath;
+      int? fileSize;
 
-    // Appeler le callback pour ajouter la ressource
-    widget.onRessourceAdded(newResource);
+      // Gestion fichier vs URL
+      if (_selectedFile != null) {
+        // UPLOAD VERS FIREBASE STORAGE
+        Map<String, dynamic> uploadResult = await _storageService.uploadFile(
+          file: _selectedFile!,
+          courseId: widget.courseId,
+          fileName: _fileName!,
+        );
 
-    // Fermer le dialog
-    Navigator.pop(context);
+        if (!uploadResult['success']) {
+          _showErrorSnackBar('Erreur upload: ${uploadResult['error']}');
+          return;
+        }
+
+        finalUrl = uploadResult['url'];
+        storagePath = uploadResult['storagePath'];
+        fileSize = uploadResult['size'];
+
+      } else if (_urlController.text.isNotEmpty) {
+        // Utiliser URL externe (YouTube, Drive, etc.)
+        finalUrl = _urlController.text;
+
+        // Valider que c'est une URL valide
+        if (!finalUrl.startsWith('http')) {
+          _showErrorSnackBar('Veuillez entrer une URL valide (https://...)');
+          return;
+        }
+      } else {
+        _showErrorSnackBar('Sélectionnez un fichier ou entrez une URL');
+        return;
+      }
+
+      // Créer la ressource
+      CourseResource newResource = CourseResource(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        type: _selectedResourceType!,
+        title: _titleController.text,
+        url: finalUrl!,
+        storagePath: storagePath,
+        size: fileSize,
+        mime: _getMimeType(_selectedResourceType!),
+        uploadedBy: 'admin_id', // À remplacer par FirebaseAuth.instance.currentUser!.uid
+        createdAt: DateTime.now(),
+      );
+
+      // Ajouter au cours existant
+      await _courseController.addResource(widget.courseId, newResource);
+      widget.onRessourceAdded(newResource);
+
+      Navigator.pop(context);
+      _showSuccessSnackBar('Ressource ajoutée avec succès!');
+
+    } catch (e) {
+      _showErrorSnackBar('Erreur: $e');
+    }
+  }
+
+  String _getMimeType(String type) {
+    switch (type) {
+      case 'pdf': return 'application/pdf';
+      case 'video': return 'video/mp4';
+      default: return 'application/octet-stream';
+    }
   }
 
   void _showErrorSnackBar(String message) {
@@ -103,6 +139,17 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -124,7 +171,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'ajouter ressource',
+                    'Ajouter une ressource',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -138,7 +185,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
               ),
               const SizedBox(height: 20),
 
-              // Dropdown pour sélectionner le type
+              // Type de ressource
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -147,207 +194,201 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: DropdownButton<String>(
-                  value: selectedType,
-                  hint: const Text('TD'),
+                  value: _selectedResourceType,
+                  hint: const Text('Type de ressource*'),
                   isExpanded: true,
                   underline: const SizedBox(),
-                  items: ['TD', 'TP', 'COUR'].map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
+                  items: [
+                    DropdownMenuItem(
+                      value: 'pdf',
+                      child: Row(
+                        children: [
+                          Icon(Icons.picture_as_pdf, color: Colors.red, size: 20),
+                          SizedBox(width: 8),
+                          Text('PDF Document'),
+                        ],
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'video',
+                      child: Row(
+                        children: [
+                          Icon(Icons.videocam, color: Colors.blue, size: 20),
+                          SizedBox(width: 8),
+                          Text('Vidéo'),
+                        ],
+                      ),
+                    ),
+                  ],
                   onChanged: (String? newValue) {
                     setState(() {
-                      selectedType = newValue;
+                      _selectedResourceType = newValue;
+                      // Réinitialiser les sélections quand on change le type
+                      if (newValue != null) {
+                        _selectedFile = null;
+                        _fileName = null;
+                        _urlController.clear();
+                      }
                     });
                   },
                 ),
               ),
               const SizedBox(height: 16),
 
-              // Champ Titre
+              // Titre de la ressource
               TextField(
-                controller: titleController,
-                decoration: InputDecoration(
-                  hintText: 'titre',
-                  hintStyle: TextStyle(color: Colors.grey[400]),
-                  border: const OutlineInputBorder(),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  hintText: 'Titre de la ressource*',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
               ),
               const SizedBox(height: 16),
 
-              // Champ Description
-              TextField(
-                controller: descriptionController,
-                maxLines: 5,
-                decoration: InputDecoration(
-                  hintText: 'Description',
-                  hintStyle: TextStyle(color: Colors.grey[400]),
-                  border: const OutlineInputBorder(),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
+              // Section Fichier
+              if (_selectedResourceType != null) ...[
+                Text(
+                  'Option 1: Importer un fichier',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[700],
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
+                const SizedBox(height: 8),
 
-              // Barre d'outils de formatage (simplifié)
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.format_bold, size: 20),
-                    onPressed: () {
-                      // TODO: Ajouter formatage gras
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.format_italic, size: 20),
-                    onPressed: () {
-                      // TODO: Ajouter formatage italique
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.format_underlined, size: 20),
-                    onPressed: () {
-                      // TODO: Ajouter formatage souligné
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.format_list_bulleted, size: 20),
-                    onPressed: () {
-                      // TODO: Ajouter liste
-                    },
-                  ),
-                  const Spacer(),
-                  // Bouton pour ajouter image de couverture
-                  IconButton(
-                    icon: const Icon(Icons.image, size: 20),
-                    onPressed: _pickCoverImage,
-                    tooltip: 'Ajouter image de couverture',
-                  ),
-                  // Bouton emoji (simplifié)
-                  IconButton(
-                    icon: const Icon(Icons.emoji_emotions, size: 20),
-                    onPressed: () {
-                      // TODO: Ajouter sélecteur emoji
-                    },
-                  ),
-                  // Bouton pour uploader fichier (PDF/Vidéo)
-                  IconButton(
-                    icon: const Icon(Icons.upload_file, size: 20),
-                    onPressed: _pickResourceFile,
-                    tooltip: 'Ajouter fichier (PDF ou Vidéo)',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Afficher l'image de couverture sélectionnée
-              if (coverImageName != null)
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.image, color: Colors.blue),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Image: $coverImageName',
-                          style: const TextStyle(fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
+                if (_fileName != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _selectedResourceType == 'pdf'
+                              ? Icons.picture_as_pdf
+                              : Icons.videocam,
+                          color: Colors.green,
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 16),
-                        onPressed: () {
-                          setState(() {
-                            coverImage = null;
-                            coverImageName = null;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              if (coverImageName != null) const SizedBox(height: 8),
-
-              // Afficher le fichier ressource sélectionné
-              if (resourceFileName != null)
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        resourceFileType == 'pdf'
-                            ? Icons.picture_as_pdf
-                            : Icons.videocam,
-                        color: Colors.green,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Fichier: $resourceFileName',
-                          style: const TextStyle(fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _fileName!,
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                'Prêt à être uploadé',
+                                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 16),
-                        onPressed: () {
-                          setState(() {
-                            resourceFile = null;
-                            resourceFileName = null;
-                            resourceFileType = null;
-                          });
-                        },
-                      ),
-                    ],
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 20),
+                          onPressed: () {
+                            setState(() {
+                              _selectedFile = null;
+                              _fileName = null;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  ElevatedButton.icon(
+                    onPressed: _pickFile,
+                    icon: const Icon(Icons.upload_file),
+                    label: const Text('Choisir un fichier'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[50],
+                      foregroundColor: Colors.blue,
+                      minimumSize: Size(double.infinity, 50),
+                    ),
+                  ),
+
+                const SizedBox(height: 8),
+                Text(
+                  'Taille maximale: 2MB (PDF ou Vidéo)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 16),
+
+                // OU - Séparateur
+                Row(
+                  children: [
+                    Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Text('OU', style: TextStyle(color: Colors.grey)),
+                    ),
+                    Expanded(child: Divider()),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Option 2: Lien externe
+                Text(
+                  'Option 2: Lien externe',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[700],
                   ),
                 ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _urlController,
+                  decoration: const InputDecoration(
+                    hintText: 'https://drive.google.com/... ou https://youtube.com/...',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                  onChanged: (value) {
+                    // Si l'utilisateur entre une URL, désélectionner le fichier
+                    if (value.isNotEmpty) {
+                      setState(() {
+                        _selectedFile = null;
+                        _fileName = null;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Pour les fichiers >2MB, utilisez Google Drive, YouTube, Vimeo, etc.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 20),
+              ],
 
-              // Boutons Annuler et Publier
+              // Boutons
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     style: TextButton.styleFrom(
-                      backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
+                      backgroundColor: Colors.red,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
-                    child: const Text('annuler'),
+                    child: const Text('Annuler'),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
-                    onPressed: _publierRessource,
+                    onPressed: _ajouterRessource,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
-                    child: const Text('publier'),
+                    child: const Text('Ajouter la ressource'),
                   ),
                 ],
               ),
@@ -360,8 +401,8 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
 
   @override
   void dispose() {
-    titleController.dispose();
-    descriptionController.dispose();
+    _titleController.dispose();
+    _urlController.dispose();
     super.dispose();
   }
 }
