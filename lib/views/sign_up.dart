@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:untitled/firebase_options.dart';
+import '../controllers/auth_controller.dart';
 // ---- PAGE PRINCIPALE ----
 class SignupPage extends StatelessWidget {
   const SignupPage({super.key});
@@ -112,29 +114,46 @@ class SignupFormState extends State<SignupForm> {
   ];
 
 
-  void signup() {
-    String nom = nomController.text;
-    String prenom = prenomController.text;
-    String email = emailController.text;
-    String password = passwordController.text;
-    String etablissement = etablissementController.text;
+  void signup() async {
+    String nom = nomController.text.trim();
+    String prenom = prenomController.text.trim();
+    String email = emailController.text.trim();
+    String password = passwordController.text.trim();
+    String etablissement = etablissementController.text.trim();
 
-    if (nom.isEmpty ||
-        prenom.isEmpty ||
-        email.isEmpty ||
-        password.isEmpty ||
-        etablissement.isEmpty ||
-        userType == null) {
+    if (nom.isEmpty || prenom.isEmpty || email.isEmpty || password.isEmpty || etablissement.isEmpty || niveau == null) {
       _showMessage('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
-    if (userType == 'Étudiant' && niveau == null) {
-      _showMessage('Veuillez sélectionner votre niveau scolaire');
-      return;
-    }
+    try {
+      // Créer un utilisateur Firebase
+      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-    _showMessage('Inscription réussie pour $prenom $nom !');
+      // Ajouter éventuellement des infos supplémentaires dans Firestore (optionnel)
+      // await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
+      //   'nom': nom,
+      //   'prenom': prenom,
+      //   'etablissement': etablissement,
+      //   'niveau': niveau,
+      //   'role': 'etudiant',
+      // });
+
+      _showMessage('Inscription réussie pour $prenom $nom !');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'weak-password') {
+        _showMessage('Le mot de passe est trop faible.');
+      } else if (e.code == 'email-already-in-use') {
+        _showMessage('Un compte existe déjà avec cet email.');
+      } else {
+        _showMessage('Erreur : ${e.message}');
+      }
+    } catch (e) {
+      _showMessage('Erreur inattendue : $e');
+    }
   }
 
   void _showMessage(String message) {
