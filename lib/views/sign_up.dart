@@ -342,4 +342,3 @@ class SignupFormState extends State<SignupForm> {
   }
 
 }
-
