@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:video_player/video_player.dart';
 import 'dart:io';
 import '../controllers/course_controller.dart';
 import '../services/storage_service.dart';
 import '../models/course_model.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AjouterRessourceDialog extends StatefulWidget {
   final String courseId;
@@ -30,6 +30,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
   String? _selectedResourceType; // 'pdf', 'video'
   File? _selectedFile;
   String? _fileName;
+  bool _isUploading = false;
 
   // Fonction pour sélectionner le fichier
   Future<void> _pickFile() async {
@@ -64,6 +65,18 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
       return;
     }
 
+    // Validation selon le type choisi
+    if (_selectedResourceType == 'pdf' || _selectedResourceType == 'video') {
+      if (_selectedFile == null && _urlController.text.isEmpty) {
+        _showErrorSnackBar('Sélectionnez un fichier ou entrez une URL');
+        return;
+      }
+    }
+
+    setState(() {
+      _isUploading = true;
+    });
+
     try {
       String? finalUrl;
       String? storagePath;
@@ -71,7 +84,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
 
       // Gestion fichier vs URL
       if (_selectedFile != null) {
-        // UPLOAD VERS FIREBASE STORAGE
+        // Upload vers Firebase Storage
         Map<String, dynamic> uploadResult = await _storageService.uploadFile(
           file: _selectedFile!,
           courseId: widget.courseId,
@@ -80,6 +93,9 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
 
         if (!uploadResult['success']) {
           _showErrorSnackBar('Erreur upload: ${uploadResult['error']}');
+          setState(() {
+            _isUploading = false;
+          });
           return;
         }
 
@@ -88,17 +104,17 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
         fileSize = uploadResult['size'];
 
       } else if (_urlController.text.isNotEmpty) {
-        // Utiliser URL externe (YouTube, Drive, etc.)
+        // Utiliser URL externe
         finalUrl = _urlController.text;
 
         // Valider que c'est une URL valide
         if (!finalUrl.startsWith('http')) {
           _showErrorSnackBar('Veuillez entrer une URL valide (https://...)');
+          setState(() {
+            _isUploading = false;
+          });
           return;
         }
-      } else {
-        _showErrorSnackBar('Sélectionnez un fichier ou entrez une URL');
-        return;
       }
 
       // Créer la ressource
@@ -110,7 +126,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
         storagePath: storagePath,
         size: fileSize,
         mime: _getMimeType(_selectedResourceType!),
-        uploadedBy: 'admin_id', // À remplacer par FirebaseAuth.instance.currentUser!.uid
+        uploadedBy: FirebaseAuth.instance.currentUser?.uid ?? 'admin_id',
         createdAt: DateTime.now(),
       );
 
@@ -123,6 +139,10 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
 
     } catch (e) {
       _showErrorSnackBar('Erreur: $e');
+    } finally {
+      setState(() {
+        _isUploading = false;
+      });
     }
   }
 
@@ -139,7 +159,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
-        duration: Duration(seconds: 3),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -149,7 +169,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.green,
-        duration: Duration(seconds: 2),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -179,7 +199,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _isUploading ? null : () => Navigator.pop(context),
                   ),
                 ],
               ),
@@ -204,8 +224,8 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
                       child: Row(
                         children: [
                           Icon(Icons.picture_as_pdf, color: Colors.red, size: 20),
-                          SizedBox(width: 8),
-                          Text('PDF Document'),
+                          const SizedBox(width: 8),
+                          const Text('PDF Document'),
                         ],
                       ),
                     ),
@@ -214,13 +234,13 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
                       child: Row(
                         children: [
                           Icon(Icons.videocam, color: Colors.blue, size: 20),
-                          SizedBox(width: 8),
-                          Text('Vidéo'),
+                          const SizedBox(width: 8),
+                          const Text('Vidéo'),
                         ],
                       ),
                     ),
                   ],
-                  onChanged: (String? newValue) {
+                  onChanged: _isUploading ? null : (String? newValue) {
                     setState(() {
                       _selectedResourceType = newValue;
                       // Réinitialiser les sélections quand on change le type
@@ -238,6 +258,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
               // Titre de la ressource
               TextField(
                 controller: _titleController,
+                enabled: !_isUploading,
                 decoration: const InputDecoration(
                   hintText: 'Titre de la ressource*',
                   border: OutlineInputBorder(),
@@ -246,7 +267,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
               ),
               const SizedBox(height: 16),
 
-              // Section Fichier
+              // Section selon le type sélectionné
               if (_selectedResourceType != null) ...[
                 Text(
                   'Option 1: Importer un fichier',
@@ -280,7 +301,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
                             children: [
                               Text(
                                 _fileName!,
-                                style: TextStyle(fontWeight: FontWeight.bold),
+                                style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
                               Text(
                                 'Prêt à être uploadé',
@@ -291,7 +312,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
                         ),
                         IconButton(
                           icon: const Icon(Icons.close, size: 20),
-                          onPressed: () {
+                          onPressed: _isUploading ? null : () {
                             setState(() {
                               _selectedFile = null;
                               _fileName = null;
@@ -303,13 +324,13 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
                   )
                 else
                   ElevatedButton.icon(
-                    onPressed: _pickFile,
+                    onPressed: _isUploading ? null : _pickFile,
                     icon: const Icon(Icons.upload_file),
                     label: const Text('Choisir un fichier'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue[50],
                       foregroundColor: Colors.blue,
-                      minimumSize: Size(double.infinity, 50),
+                      minimumSize: const Size(double.infinity, 50),
                     ),
                   ),
 
@@ -323,12 +344,12 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
                 // OU - Séparateur
                 Row(
                   children: [
-                    Expanded(child: Divider()),
+                    const Expanded(child: Divider()),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Text('OU', style: TextStyle(color: Colors.grey)),
                     ),
-                    Expanded(child: Divider()),
+                    const Expanded(child: Divider()),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -344,6 +365,7 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: _urlController,
+                  enabled: !_isUploading,
                   decoration: const InputDecoration(
                     hintText: 'https://drive.google.com/... ou https://youtube.com/...',
                     border: OutlineInputBorder(),
@@ -367,28 +389,52 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
                 const SizedBox(height: 20),
               ],
 
+              // Instructions
+              if (_selectedResourceType != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    _getInstructions(),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              const SizedBox(height: 20),
+
               // Boutons
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _isUploading ? null : () => Navigator.pop(context),
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.white,
-                      backgroundColor: Colors.red,
+                      backgroundColor: _isUploading ? Colors.grey : Colors.red,
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
                     child: const Text('Annuler'),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
-                    onPressed: _ajouterRessource,
+                    onPressed: _isUploading ? null : _ajouterRessource,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor: _isUploading ? Colors.grey : Colors.green,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
-                    child: const Text('Ajouter la ressource'),
+                    child: _isUploading
+                        ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                        : const Text('Ajouter la ressource'),
                   ),
                 ],
               ),
@@ -399,6 +445,17 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
     );
   }
 
+  String _getInstructions() {
+    switch (_selectedResourceType) {
+      case 'pdf':
+        return 'Pour les PDFs: Utilisez Google Drive (partage public) ou upload direct (<2MB)';
+      case 'video':
+        return 'Pour les vidéos: Utilisez YouTube/Vimeo (lien public) ou upload direct (<2MB)';
+      default:
+        return 'Sélectionnez un type de ressource';
+    }
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -406,3 +463,6 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
     super.dispose();
   }
 }
+
+
+
