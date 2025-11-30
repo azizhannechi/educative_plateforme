@@ -1,450 +1,211 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
+import '../models/course_model.dart';
+import '../controllers/purchase_controller.dart';
+import '../models/purchase_model.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class CourseDetailsPage extends StatefulWidget {
-  final String title;
-  final double progress;
-  final bool isFavorite;
+  final Course course;
+  final bool hasPurchased;
 
   const CourseDetailsPage({
-    super.key,
-    required this.title,
-    required this.progress,
-    required this.isFavorite,
-  });
+    Key? key,
+    required this.course,
+    required this.hasPurchased,
+  }) : super(key: key);
 
   @override
   State<CourseDetailsPage> createState() => _CourseDetailsPageState();
 }
 
 class _CourseDetailsPageState extends State<CourseDetailsPage> {
-  int userRating = 0;
-  final TextEditingController _commentController = TextEditingController();
+  final PurchaseController _purchaseController = PurchaseController();
+  final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // Liste des commentaires (exemple)
-  final List<Map<String, dynamic>> comments = [
-    {
-      'user': 'Utilisateur 1',
-      'comment': 'Excellent cours, très bien expliqué!',
-      'rating': 5,
-    },
-    {
-      'user': 'Utilisateur 2',
-      'comment': 'Bon contenu mais pourrait être plus détaillé.',
-      'rating': 3,
-    },
-  ];
-
-  // 🔑 REMPLACE PAR TA CLÉ PAYMEE SANDBOX
-  static const String _paymeeApiKey = "YOUR_SANDBOX_API_KEY_HERE";
-
-  Future<void> _buyWithPaymeeTest() async {
-    final url = Uri.parse("https://sandbox.paymee.tn/api/v2/payments/create");
-
-    final body = {
-      "amount": 100, // 100 millimes = 0.1 TND (test parfait)
-      "note": "Test achat cours: ${widget.title}",
-      "return_url": "https://example.com/success",
-      "cancel_url": "https://example.com/cancel",
-    };
-
-    try {
-      // Montre un loading
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-
-      final response = await http.post(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": _paymeeApiKey,
-        },
-        body: jsonEncode(body),
-      );
-
-      Navigator.pop(context); // Ferme le loading
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200 && data["status"] == 200) {
-        final paymentUrl = data["data"]["payment_url"];
-
-        if (await canLaunchUrl(Uri.parse(paymentUrl))) {
-          await launchUrl(
-              Uri.parse(paymentUrl),
-              mode: LaunchMode.externalApplication
-          );
-        } else {
-          _showMessage("Impossible d'ouvrir Paymee");
-        }
-      } else {
-        _showMessage("❌ Erreur Paymee : ${data['message'] ?? 'Erreur inconnue'}");
-      }
-    } catch (e) {
-      Navigator.pop(context); // Ferme le loading en cas d'erreur
-      _showMessage("❌ Erreur réseau : $e");
-    }
-  }
-
-  void _showMessage(String msg) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Information"),
-        content: Text(msg),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("OK"),
-          ),
-        ],
-      ),
-    );
-  }
+  bool _isPurchasing = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.black, width: 2),
-              ),
-              child: const Center(
-                child: Text(
-                  'SH',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Étudiant',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-                Text(
-                  'déconnexion',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.red,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
       body: Row(
         children: [
-          // Sidebar gauche - Bouton retour
+          // SIDEBAR
           Container(
-            width: 130,
+            width: 180,
             color: Colors.white,
             child: Column(
               children: [
-                const SizedBox(height: 20),
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      // Logo
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.black, width: 2),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'SH',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Column(
+                        children: [
+                          Text('Étudiant', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text('déconnexion',
+                              style: TextStyle(color: Colors.red, fontSize: 12)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(),
+
+                // Bouton retour
                 ListTile(
-                  leading: const Icon(Icons.arrow_back, size: 20),
-                  title: const Text('Retour', style: TextStyle(fontSize: 13)),
-                  dense: true,
-                  onTap: () {
-                    Navigator.pop(context);
-                  },
+                  leading: const Icon(Icons.arrow_back),
+                  title: const Text('Retour'),
+                  onTap: () => Navigator.pop(context),
                 ),
               ],
             ),
           ),
 
-          // Contenu principal
+          // CONTENU PRINCIPAL
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Titre
-                  Text(
-                    widget.title,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
+            child: Column(
+              children: [
+                // Barre d'en-tête
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  color: Colors.white,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Détails du cours',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                      ),
+                      // Badge type de cours
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _getTypeColor(widget.course.type),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          widget.course.type,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 30),
+                ),
 
-                  // Image du cours
-                  Container(
-                    width: 350,
-                    height: 250,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      border: Border.all(color: Colors.grey),
-                    ),
-                    child: const Center(
-                      child: Icon(Icons.image, size: 80, color: Colors.grey),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Étoile favorite et barre de progression
-                  SizedBox(
-                    width: 350,
+                // Contenu détaillé
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(30),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Titre et prix
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              widget.isFavorite ? Icons.star : Icons.star_border,
-                              color: widget.isFavorite ? Colors.amber : Colors.grey,
-                              size: 30,
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.course.title,
+                                    style: const TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    widget.course.description,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.grey[700],
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            // Prix
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.green[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.green),
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    '${widget.course.price} DT',
+                                    style: const TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 5),
+                                  const Text(
+                                    'Prix du cours',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
-                        LinearProgressIndicator(
-                          value: widget.progress,
-                          backgroundColor: Colors.grey[300],
-                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
-                          minHeight: 12,
-                        ),
+
+                        const SizedBox(height: 40),
+
+                        // Ressources disponibles
+                        _buildResourcesSection(),
+
+                        const SizedBox(height: 40),
+
+                        // Section achat
+                        _buildPurchaseSection(),
+
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 30),
-
-                  // 🔥 BOUTON PAYMEE AJOUTÉ ICI
-                  SizedBox(
-                    width: 350,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 3,
-                      ),
-                      onPressed: _buyWithPaymeeTest,
-                      child: const Text(
-                        "💳 Acheter (Test Sandbox) - 0.1 TND",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-
-                  // Description (placeholders)
-                  SizedBox(
-                    width: 600,
-                    child: Column(
-                      children: [
-                        Container(
-                          height: 15,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[400],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          height: 15,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[400],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          width: 400,
-                          height: 15,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[400],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-
-                  // Section Évaluer
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: EdgeInsets.only(left: 50),
-                      child: Text(
-                        'Évaluer',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Étoiles d'évaluation
-                  Padding(
-                    padding: const EdgeInsets.only(left: 50),
-                    child: Row(
-                      children: List.generate(5, (index) {
-                        return IconButton(
-                          icon: Icon(
-                            index < userRating ? Icons.star : Icons.star_border,
-                            color: Colors.amber,
-                            size: 35,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              userRating = index + 1;
-                            });
-                          },
-                        );
-                      }),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-
-                  // Section Commentaires
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: EdgeInsets.only(left: 50),
-                      child: Text(
-                        'Commentaires',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-
-                  // Ajouter un commentaire
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 50),
-                    child: TextField(
-                      controller: _commentController,
-                      decoration: InputDecoration(
-                        hintText: 'Ajouter commentaire',
-                        hintStyle: TextStyle(color: Colors.grey[600]),
-                        border: const UnderlineInputBorder(),
-                      ),
-                      onSubmitted: (value) {
-                        if (value.isNotEmpty) {
-                          setState(() {
-                            comments.add({
-                              'user': 'Vous',
-                              'comment': value,
-                              'rating': userRating,
-                            });
-                            _commentController.clear();
-                          });
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 25),
-
-                  // Liste des commentaires
-                  ...comments.map((comment) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 10),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Avatar
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[400],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Icon(Icons.person, color: Colors.white),
-                        ),
-                        const SizedBox(width: 15),
-
-                        // Commentaire et étoiles
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Nom utilisateur
-                              Text(
-                                comment['user'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              // Texte du commentaire
-                              Text(
-                                comment['comment'],
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                              const SizedBox(height: 8),
-
-                              // Étoiles
-                              Row(
-                                children: List.generate(5, (index) {
-                                  return Icon(
-                                    index < comment['rating']
-                                        ? Icons.star
-                                        : Icons.star_border,
-                                    color: Colors.amber,
-                                    size: 18,
-                                  );
-                                }),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  )).toList(),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -452,9 +213,357 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
     );
   }
 
-  @override
-  void dispose() {
-    _commentController.dispose();
-    super.dispose();
+  Widget _buildResourcesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Ressources incluses',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        if (widget.course.resources.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Center(
+              child: Text(
+                'Aucune ressource disponible pour le moment',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          )
+        else
+          Column(
+            children: widget.course.resources.map((resource) => Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                leading: Icon(
+                  _getResourceIcon(resource.type),
+                  color: _getResourceColor(resource.type),
+                  size: 30,
+                ),
+                title: Text(
+                  resource.title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 4),
+                    Text('Type: ${resource.type.toUpperCase()}'),
+                    if (resource.size != null) ...[
+                      const SizedBox(height: 2),
+                      Text('Taille: ${_formatFileSize(resource.size!)}'),
+                    ],
+                  ],
+                ),
+                trailing: widget.hasPurchased
+                    ? IconButton(
+                  icon: const Icon(Icons.download, color: Colors.blue),
+                  onPressed: () => _downloadResource(resource),
+                )
+                    : const Icon(Icons.lock, color: Colors.orange),
+              ),
+            )).toList(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPurchaseSection() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Accéder au cours',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          if (widget.hasPurchased)
+            Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Vous avez déjà acheté ce cours. Profitez-en !',
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Naviguer vers le contenu du cours
+                      _accessCourseContent();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text(
+                      'ACCÉDER AU CONTENU',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            Column(
+              children: [
+                // Avantages
+                const Row(
+                  children: [
+                    Icon(Icons.check, color: Colors.green, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(child: Text('Accès à toutes les ressources')),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Row(
+                  children: [
+                    Icon(Icons.check, color: Colors.green, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(child: Text('Téléchargement illimité')),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Row(
+                  children: [
+                    Icon(Icons.check, color: Colors.green, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(child: Text('Accès à vie')),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // Bouton d'achat
+                SizedBox(
+                  width: double.infinity,
+                  child: _isPurchasing
+                      ? ElevatedButton(
+                    onPressed: null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Text('Traitement en cours...'),
+                      ],
+                    ),
+                  )
+                      : ElevatedButton(
+                    onPressed: _purchaseCourse,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: Text(
+                      'ACHETER MAINTENANT - ${widget.course.price} DT',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Garantie
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.security, color: Colors.blue, size: 16),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Paiement 100% sécurisé via Paymee',
+                          style: TextStyle(fontSize: 12, color: Colors.blue),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  // MÉTHODES D'INTERACTION
+  void _purchaseCourse() async {
+    if (_currentUser == null) {
+      _showErrorSnackBar('Veuillez vous connecter pour acheter ce cours');
+      return;
+    }
+
+    setState(() {
+      _isPurchasing = true;
+    });
+
+    try {
+      // Créer l'achat
+      String purchaseId = await _purchaseController.createPurchase(
+        Purchase(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          userId: _currentUser!.uid,
+          courseId: widget.course.id,
+          price: widget.course.price,
+          paymentMethod: 'paymee',
+          status: 'pending', // Devient 'paid' après succès Paymee
+          transactionId: '',
+          createdAt: DateTime.now(),
+        ),
+      );
+
+      // TODO: Intégrer Paymee Sandbox ici
+      // Pour l'instant, on simule le succès
+      await _purchaseController.updateStatus(purchaseId, 'paid',
+          transactionId: 'PM${DateTime.now().millisecondsSinceEpoch}');
+
+      setState(() {
+        _isPurchasing = false;
+      });
+
+      _showSuccessSnackBar('Achat réussi ! Vous avez maintenant accès au cours.');
+
+      // Mettre à jour l'interface
+      if (mounted) {
+        Navigator.pop(context, true); // Retour avec indication de succès
+      }
+
+    } catch (e) {
+      setState(() {
+        _isPurchasing = false;
+      });
+      _showErrorSnackBar('Erreur lors de l\'achat: $e');
+    }
+  }
+
+  void _accessCourseContent() {
+    // TODO: Naviguer vers la page de contenu du cours
+    _showSuccessSnackBar('Redirection vers le contenu du cours...');
+  }
+
+  void _downloadResource(CourseResource resource) {
+    // TODO: Implémenter le téléchargement
+    _showSuccessSnackBar('Téléchargement de ${resource.title}...');
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  // MÉTHODES HELPER
+  IconData _getResourceIcon(String type) {
+    switch (type) {
+      case 'pdf': return Icons.picture_as_pdf;
+      case 'video': return Icons.videocam;
+      case 'link': return Icons.link;
+      default: return Icons.insert_drive_file;
+    }
+  }
+
+  Color _getResourceColor(String type) {
+    switch (type) {
+      case 'pdf': return Colors.red;
+      case 'video': return Colors.blue;
+      case 'link': return Colors.green;
+      default: return Colors.grey;
+    }
+  }
+
+  Color _getTypeColor(String type) {
+    switch (type) {
+      case 'TD': return Colors.purple;
+      case 'TP': return Colors.orange;
+      case 'COUR': return Colors.red;
+      default: return Colors.grey;
+    }
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1048576) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / 1048576).toStringAsFixed(1)} MB';
   }
 }
+
+
