@@ -4,10 +4,12 @@ class Course {
   String id;
   String title;
   String description;
-  String type; // TD, TP, COUR
+  String type;
   String createdBy;
   DateTime createdAt;
-  String status; // draft | pending | published
+  String status;
+  double price; // AJOUTÉ
+  String category; // AJOUTÉ
   String? thumbnailUrl;
   List<CourseResource> resources;
 
@@ -18,7 +20,9 @@ class Course {
     required this.type,
     required this.createdBy,
     required this.createdAt,
-    this.status = 'draft',
+    required this.status,
+    required this.price, // AJOUTÉ
+    required this.category, // AJOUTÉ
     this.thumbnailUrl,
     required this.resources,
   });
@@ -32,6 +36,8 @@ class Course {
       'createdBy': createdBy,
       'createdAt': Timestamp.fromDate(createdAt),
       'status': status,
+      'price': price, // AJOUTÉ
+      'category': category, // AJOUTÉ
       'thumbnailUrl': thumbnailUrl,
       'resources': resources.map((resource) => resource.toMap()).toList(),
     };
@@ -46,9 +52,11 @@ class Course {
       createdBy: data['createdBy'],
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       status: data['status'] ?? 'draft',
+      price: (data['price'] ?? 0.0).toDouble(), // AJOUTÉ avec valeur par défaut
+      category: data['category'] ?? 'general', // AJOUTÉ avec valeur par défaut
       thumbnailUrl: data['thumbnailUrl'],
       resources: List<CourseResource>.from(
-          (data['resources'] ?? []).map((resource) => CourseResource.fromMap(resource))
+        (data['resources'] ?? []).map((resource) => CourseResource.fromMap(resource)),
       ),
     );
   }
@@ -56,11 +64,11 @@ class Course {
 
 class CourseResource {
   String id;
-  String type; // pdf | video | link | doc
+  String type;
   String title;
   String url;
-  String? storagePath; // Si stocké sur Firebase Storage
-  int? size; // octets
+  String? storagePath;
+  int? size;
   String? mime;
   String uploadedBy;
   DateTime createdAt;
