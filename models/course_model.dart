@@ -1,115 +1,75 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class Course {
-  String id;
-  String title;
-  String description;
-  String type;
-  String createdBy;
-  DateTime createdAt;
-  String status;
-  double price; // AJOUTÉ
-  String category; // AJOUTÉ
-  String? thumbnailUrl;
-  List<CourseResource> resources;
+  // SIMPLE SIGNUP (email + password)
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-  Course({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.type,
-    required this.createdBy,
-    required this.createdAt,
-    required this.status,
-    required this.price, // AJOUTÉ
-    required this.category, // AJOUTÉ
-    this.thumbnailUrl,
-    required this.resources,
-  });
+class AuthModel {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'title': title,
-      'description': description,
-      'type': type,
-      'createdBy': createdBy,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'status': status,
-      'price': price, // AJOUTÉ
-      'category': category, // AJOUTÉ
-      'thumbnailUrl': thumbnailUrl,
-      'resources': resources.map((resource) => resource.toMap()).toList(),
-    };
+  // LOGIN
+  Future<User?> login(String email, String password) async {
+    try {
+      UserCredential userCred = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return userCred.user;
+    } catch (e) {
+      print("Erreur login: $e");
+      return null;
+    }
   }
 
-  factory Course.fromMap(Map<String, dynamic> data, String id) {
-    return Course(
-      id: id,
-      title: data['title'],
-      description: data['description'],
-      type: data['type'],
-      createdBy: data['createdBy'],
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      status: data['status'] ?? 'draft',
-      price: (data['price'] ?? 0.0).toDouble(), // AJOUTÉ avec valeur par défaut
-      category: data['category'] ?? 'general', // AJOUTÉ avec valeur par défaut
-      thumbnailUrl: data['thumbnailUrl'],
-      resources: List<CourseResource>.from(
-        (data['resources'] ?? []).map((resource) => CourseResource.fromMap(resource)),
-      ),
-    );
-  }
-}
-
-class CourseResource {
-  String id;
-  String type;
-  String title;
-  String url;
-  String? storagePath;
-  int? size;
-  String? mime;
-  String uploadedBy;
-  DateTime createdAt;
-
-  CourseResource({
-    required this.id,
-    required this.type,
-    required this.title,
-    required this.url,
-    this.storagePath,
-    this.size,
-    this.mime,
-    required this.uploadedBy,
-    required this.createdAt,
-  });
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'type': type,
-      'title': title,
-      'url': url,
-      'storagePath': storagePath,
-      'size': size,
-      'mime': mime,
-      'uploadedBy': uploadedBy,
-      'createdAt': createdAt.millisecondsSinceEpoch,
-    };
+  // SIMPLE SIGNUP (email + password)
+  Future<User?> signup(String email, String password) async {
+    try {
+      UserCredential userCred = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return userCred.user;
+    } catch (e) {
+      print("Erreur signup: $e");
+      return null;
+    }
   }
 
-  factory CourseResource.fromMap(Map<String, dynamic> data) {
-    return CourseResource(
-      id: data['id'],
-      type: data['type'],
-      title: data['title'],
-      url: data['url'],
-      storagePath: data['storagePath'],
-      size: data['size'],
-      mime: data['mime'],
-      uploadedBy: data['uploadedBy'],
-      createdAt: DateTime.fromMillisecondsSinceEpoch(data['createdAt']),
-    );
+  // SIGNUP + SAVE EXTRA USER DETAILS
+  Future<User?> signupWithDetails({
+    required String nom,
+    required String prenom,
+    required String email,
+    required String password,
+    required String etablissement,
+    String? userType,
+    String? niveau,
+    String? matiere,
+  }) async {
+    try {
+      UserCredential userCred = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      await _firestore.collection('users').doc(userCred.user!.uid).set({
+        'nom': nom,
+        'prenom': prenom,
+        'email': email,
+        'etablissement': etablissement,
+        'userType': userType ?? "etudiant",
+        'niveau': niveau,
+        'matiere': matiere,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return userCred.user;
+    } catch (e) {
+      print("Erreur signupWithDetails: $e");
+      return null;
+    }
   }
 }
+
