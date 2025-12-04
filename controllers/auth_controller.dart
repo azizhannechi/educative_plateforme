@@ -43,12 +43,10 @@ class AuthController {
     String? userType,
     String? niveau,
   }) async {
-    // Empêcher l'inscription avec un email admin
     if (await _isAdmin(email)) {
       return "Cet email est réservé à l'administration";
     }
 
-    // Utiliser AuthModel pour l'inscription
     var user = await _model.signupWithDetails(
       nom: nom,
       prenom: prenom,
@@ -60,25 +58,41 @@ class AuthController {
     );
 
     if (user != null) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set({
+        'uid': user.uid,
+        'nom': nom,
+        'prenom': prenom,
+        'email': email,
+        'etablissement': etablissement,
+        'niveau': niveau,
+        'userType': userType ?? 'Étudiant',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
       return "Inscription réussie";
     } else {
       return "Impossible de créer le compte";
     }
   }
 
+
   // Méthode pour récupérer tous les utilisateurs (CORRIGÉE)
+// Méthode pour récupérer tous les utilisateurs
   Stream<List<Map<String, dynamic>>> getUsers() {
     return _firestore.collection('users')
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {
         final data = doc.data();
-        final userType = data['userType'] ?? 'Étudiant';
         final userEmail = data['email'] ?? '';
+        final userType = data['userType'] ?? 'Étudiant';
 
         return {
           'id': doc.id,
-          'uid': doc.id, // Utiliser l'ID du document comme UID
+          'uid': doc.id, // l'ID du document = UID
           'nom': data['nom'] ?? '',
           'prenom': data['prenom'] ?? '',
           'email': userEmail,
@@ -88,20 +102,20 @@ class AuthController {
           'dateInscription': data['createdAt'],
           'status': 'Actif',
         };
-      }).where((user) {
-        // Filtrer pour exclure les emails admin
-        return !_isAdminEmail(user['email']);
-      }).toList();
+      })
+          .where((user) => !_isAdminEmail(user['email'])) // 👍 exclure admins
+          .toList();
     });
   }
 
-  // Méthode pour vérifier si un email est admin
-  bool _isAdminEmail(String email) {
-    List<String> adminEmails = [
-      'admin@studyhub.com',
-      'administrateur@studyhub.com',
-      'superadmin@studyhub.com'
-    ];
-    return adminEmails.contains(email.toLowerCase());
-  }
+
+    // Méthode pour vérifier si un email est admin
+    bool _isAdminEmail(String email) {
+      List<String> adminEmails = [
+        'admin@studyhub.com',
+        'administrateur@studyhub.com',
+        'superadmin@studyhub.com'
+      ];
+      return adminEmails.contains(email.toLowerCase());
+    }
 }
