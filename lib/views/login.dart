@@ -13,16 +13,44 @@ class LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final AuthController _controller = AuthController();
+  bool _isLoading = false;
 
   void login() async {
+    setState(() => _isLoading = true);
+
     String email = emailController.text.trim();
     String password = passwordController.text.trim();
 
-    // Maintenant login() retourne un Map, pas un String
     Map<String, dynamic> result = await _controller.login(email, password);
 
+    setState(() => _isLoading = false);
+
     if (result["success"] == true) {
-      // Vérifier si c'est l'admin
+      if (result["isAdmin"] == true) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => AdminView()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => StudentHomePage()),
+        );
+      }
+    }
+
+    _showMessage(result["message"]);
+  }
+
+  // 🔹 NOUVELLE MÉTHODE : Connexion avec Google
+  void loginWithGoogle() async {
+    setState(() => _isLoading = true);
+
+    Map<String, dynamic> result = await _controller.signInWithGoogle();
+
+    setState(() => _isLoading = false);
+
+    if (result["success"] == true) {
       if (result["isAdmin"] == true) {
         Navigator.pushReplacement(
           context,
@@ -109,10 +137,57 @@ class LoginPageState extends State<LoginPage> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: login,
-                          child: Text('Continuer'),
+                          onPressed: _isLoading ? null : login,
+                          child: _isLoading
+                              ? SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                              : Text('Continuer'),
                         ),
                       ),
+
+                      SizedBox(height: 20),
+
+                      // 🔹 SÉPARATEUR "OU"
+                      Row(
+                        children: [
+                          Expanded(child: Divider(thickness: 1)),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 10),
+                            child: Text('OU', style: TextStyle(color: Colors.grey)),
+                          ),
+                          Expanded(child: Divider(thickness: 1)),
+                        ],
+                      ),
+
+                      SizedBox(height: 20),
+
+                      // 🔹 BOUTON GOOGLE SIGN-IN
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _isLoading ? null : loginWithGoogle,
+                          icon: Image.asset(
+                            'assets/image/google_logo.png',
+                            height: 24,
+                            width: 24,
+                          ),
+                          label: Text(
+                            'Continuer avec Google',
+                            style: TextStyle(color: Colors.black87),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(vertical: 15),
+                            side: BorderSide(color: Colors.grey[300]!),
+                          ),
+                        ),
+                      ),
+
                       SizedBox(height: 20),
                       TextButton(
                         onPressed: () {
