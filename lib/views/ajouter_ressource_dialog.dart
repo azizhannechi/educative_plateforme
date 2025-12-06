@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../controllers/course_controller.dart';
 import '../services/storage_service.dart';
@@ -463,6 +464,10 @@ class _AjouterRessourceDialogState extends State<AjouterRessourceDialog> {
     super.dispose();
   }
 }
+
+
+
+
 
 
 
