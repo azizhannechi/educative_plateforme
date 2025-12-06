@@ -3,6 +3,7 @@ import '../models/course_model.dart';
 import '../controllers/purchase_controller.dart';
 import '../models/purchase_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/paymee_service.dart';
 
 class CourseDetailsPage extends StatefulWidget {
   final Course course;
@@ -23,7 +24,13 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
   bool _isPurchasing = false;
+  bool _hasPurchased = false;
 
+  @override
+  void initState (){
+    super.initState();
+    _hasPurchased = widget.hasPurchased;
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -458,45 +465,51 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
       return;
     }
 
-    setState(() {
-      _isPurchasing = true;
-    });
+    setState(() => _isPurchasing = true);
 
     try {
-      // Créer l'achat
-      String purchaseId = await _purchaseController.createPurchase(
+      final purchaseId = await _purchaseController.createPurchase(
         Purchase(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           userId: _currentUser!.uid,
           courseId: widget.course.id,
           price: widget.course.price,
           paymentMethod: 'paymee',
-          status: 'pending', // Devient 'paid' après succès Paymee
+          status: 'pending',
           transactionId: '',
           createdAt: DateTime.now(),
         ),
       );
 
-      // TODO: Intégrer Paymee Sandbox ici
-      // Pour l'instant, on simule le succès
-      await _purchaseController.updateStatus(purchaseId, 'paid',
-          transactionId: 'PM${DateTime.now().millisecondsSinceEpoch}');
+      // 1️⃣ Appel Paymee
+      final paymee = PaymeeService();
+      final paymentResponse = await paymee.createPayment(
+        amount: widget.course.price.toStringAsFixed(2),
+        description: widget.course.title,
+        orderId: purchaseId,
+      );
+
+      final paymentId = paymentResponse['id'] ?? '';
+
+      // 2️⃣ Vérifier paiement (simulé ici avec délai)
+      await Future.delayed(const Duration(seconds: 3));
+
+      await _purchaseController.updateStatus(
+        purchaseId,
+        'paid',
+        transactionId: paymentId,
+      );
 
       setState(() {
         _isPurchasing = false;
+        _hasPurchased = true;
       });
 
       _showSuccessSnackBar('Achat réussi ! Vous avez maintenant accès au cours.');
-
-      // Mettre à jour l'interface
-      if (mounted) {
-        Navigator.pop(context, true); // Retour avec indication de succès
-      }
+      Navigator.pop(context, true);
 
     } catch (e) {
-      setState(() {
-        _isPurchasing = false;
-      });
+      setState(() => _isPurchasing = false);
       _showErrorSnackBar('Erreur lors de l\'achat: $e');
     }
   }
