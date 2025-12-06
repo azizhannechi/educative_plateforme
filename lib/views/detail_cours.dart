@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../models/course_model.dart';
 import '../controllers/purchase_controller.dart';
 import '../models/purchase_model.dart';
@@ -27,10 +28,11 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
   bool _hasPurchased = false;
 
   @override
-  void initState (){
+  void initState() {
     super.initState();
     _hasPurchased = widget.hasPurchased;
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -43,12 +45,10 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
             color: Colors.white,
             child: Column(
               children: [
-                // Header
                 Container(
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      // Logo
                       Container(
                         width: 80,
                         height: 80,
@@ -78,8 +78,6 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                   ),
                 ),
                 const Divider(),
-
-                // Bouton retour
                 ListTile(
                   leading: const Icon(Icons.arrow_back),
                   title: const Text('Retour'),
@@ -93,7 +91,6 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
           Expanded(
             child: Column(
               children: [
-                // Barre d'en-tête
                 Container(
                   padding: const EdgeInsets.all(20),
                   color: Colors.white,
@@ -109,7 +106,6 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                           ),
                         ),
                       ),
-                      // Badge type de cours
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
@@ -129,14 +125,12 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                   ),
                 ),
 
-                // Contenu détaillé
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(30),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Titre et prix
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -165,7 +159,6 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                               ),
                             ),
                             const SizedBox(width: 20),
-                            // Prix
                             Container(
                               padding: const EdgeInsets.all(20),
                               decoration: BoxDecoration(
@@ -198,15 +191,9 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                         ),
 
                         const SizedBox(height: 40),
-
-                        // Ressources disponibles
                         _buildResourcesSection(),
-
                         const SizedBox(height: 40),
-
-                        // Section achat
                         _buildPurchaseSection(),
-
                         const SizedBox(height: 20),
                       ],
                     ),
@@ -226,13 +213,9 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
       children: [
         const Text(
           'Ressources incluses',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-
         if (widget.course.resources.isEmpty)
           Container(
             padding: const EdgeInsets.all(20),
@@ -272,7 +255,7 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                     ],
                   ],
                 ),
-                trailing: widget.hasPurchased
+                trailing: _hasPurchased
                     ? IconButton(
                   icon: const Icon(Icons.download, color: Colors.blue),
                   onPressed: () => _downloadResource(resource),
@@ -304,14 +287,11 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
         children: [
           const Text(
             'Accéder au cours',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
 
-          if (widget.hasPurchased)
+          if (_hasPurchased)
             Column(
               children: [
                 Container(
@@ -341,10 +321,7 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      // Naviguer vers le contenu du cours
-                      _accessCourseContent();
-                    },
+                    onPressed: _accessCourseContent,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
@@ -361,7 +338,6 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
           else
             Column(
               children: [
-                // Avantages
                 const Row(
                   children: [
                     Icon(Icons.check, color: Colors.green, size: 20),
@@ -385,10 +361,8 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                     Expanded(child: Text('Accès à vie')),
                   ],
                 ),
-
                 const SizedBox(height: 24),
 
-                // Bouton d'achat
                 SizedBox(
                   width: double.infinity,
                   child: _isPurchasing
@@ -430,8 +404,6 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                 ),
 
                 const SizedBox(height: 12),
-
-                // Garantie
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -458,7 +430,7 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
     );
   }
 
-  // MÉTHODES D'INTERACTION
+  // 🔹 MÉTHODE D'ACHAT CORRIGÉE AVEC WEBVIEW
   void _purchaseCourse() async {
     if (_currentUser == null) {
       _showErrorSnackBar('Veuillez vous connecter pour acheter ce cours');
@@ -468,9 +440,12 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
     setState(() => _isPurchasing = true);
 
     try {
-      final purchaseId = await _purchaseController.createPurchase(
+      // 1️⃣ Créer le Purchase dans Firestore (statut pending)
+      final purchaseId = DateTime.now().millisecondsSinceEpoch.toString();
+      
+      await _purchaseController.createPurchase(
         Purchase(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          id: purchaseId,
           userId: _currentUser!.uid,
           courseId: widget.course.id,
           price: widget.course.price,
@@ -481,32 +456,57 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
         ),
       );
 
-      // 1️⃣ Appel Paymee
+      // 2️⃣ Appeler Paymee API pour créer le paiement
       final paymee = PaymeeService();
       final paymentResponse = await paymee.createPayment(
-        amount: widget.course.price.toStringAsFixed(2),
-        description: widget.course.title,
+        amount: widget.course.price,
+        note: widget.course.title,
+        firstName: _currentUser!.displayName?.split(' ').first ?? 'Étudiant',
+        lastName: _currentUser!.displayName?.split(' ').last ?? 'Test',
+        email: _currentUser!.email ?? 'test@example.com',
+        phone: '+21611111111', // À récupérer du profil utilisateur
         orderId: purchaseId,
+        webhookUrl: 'https://votre-backend.com/webhook/paymee', // 🔹 IMPORTANT
       );
 
-      final paymentId = paymentResponse['id'] ?? '';
+      if (!paymentResponse['success']) {
+        throw Exception(paymentResponse['error']);
+      }
 
-      // 2️⃣ Vérifier paiement (simulé ici avec délai)
-      await Future.delayed(const Duration(seconds: 3));
+      final paymentUrl = paymentResponse['payment_url'];
+      final token = paymentResponse['token'];
 
-      await _purchaseController.updateStatus(
-        purchaseId,
-        'paid',
-        transactionId: paymentId,
+      setState(() => _isPurchasing = false);
+
+      // 3️⃣ Ouvrir la WebView Paymee
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PaymeeWebViewPage(
+            paymentUrl: paymentUrl,
+            token: token,
+          ),
+        ),
       );
 
-      setState(() {
-        _isPurchasing = false;
-        _hasPurchased = true;
-      });
+      // 4️⃣ Traiter le résultat
+      if (result == true) {
+        await _purchaseController.updateStatus(
+          purchaseId,
+          'paid',
+          transactionId: token,
+        );
 
-      _showSuccessSnackBar('Achat réussi ! Vous avez maintenant accès au cours.');
-      Navigator.pop(context, true);
+        setState(() => _hasPurchased = true);
+
+        _showSuccessSnackBar('Achat réussi ! Vous avez maintenant accès au cours.');
+        
+        // Rediriger vers panier (MES COURS)
+        Navigator.pushReplacementNamed(context, '/panier');
+      } else {
+        await _purchaseController.updateStatus(purchaseId, 'failed');
+        _showErrorSnackBar('Paiement annulé ou échoué');
+      }
 
     } catch (e) {
       setState(() => _isPurchasing = false);
@@ -515,12 +515,11 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
   }
 
   void _accessCourseContent() {
-    // TODO: Naviguer vers la page de contenu du cours
-    _showSuccessSnackBar('Redirection vers le contenu du cours...');
+    // TODO: Naviguer vers panier.dart
+    Navigator.pushNamed(context, '/panier');
   }
 
   void _downloadResource(CourseResource resource) {
-    // TODO: Implémenter le téléchargement
     _showSuccessSnackBar('Téléchargement de ${resource.title}...');
   }
 
@@ -544,7 +543,6 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
     );
   }
 
-  // MÉTHODES HELPER
   IconData _getResourceIcon(String type) {
     switch (type) {
       case 'pdf': return Icons.picture_as_pdf;
@@ -579,4 +577,76 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
   }
 }
 
+// 🔹 PAGE WEBVIEW PAYMEE
+class PaymeeWebViewPage extends StatefulWidget {
+  final String paymentUrl;
+  final String token;
 
+  const PaymeeWebViewPage({
+    Key? key,
+    required this.paymentUrl,
+    required this.token,
+  }) : super(key: key);
+
+  @override
+  State<PaymeeWebViewPage> createState() => _PaymeeWebViewPageState();
+}
+
+class _PaymeeWebViewPageState extends State<PaymeeWebViewPage> {
+  late final WebViewController _controller;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (url) {
+            print('Page started: $url');
+          },
+          onPageFinished: (url) {
+            setState(() => _isLoading = false);
+            print('Page finished: $url');
+
+            // 🔹 Détecter la page de loader (fin du paiement)
+            if (url.contains('/loader')) {
+              print('✅ Paiement terminé, fermeture WebView');
+              Navigator.pop(context, true); // Retour avec succès
+            }
+          },
+          onNavigationRequest: (request) {
+            print('Navigation request: ${request.url}');
+            return NavigationDecision.navigate;
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(widget.paymentUrl));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Paiement Paymee'),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context, false), // Annulation
+        ),
+      ),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+          if (_isLoading)
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
+        ],
+      ),
+    );
+  }
+}
